@@ -1,0 +1,77 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+```{r Les packages utiles}
+library(tseries)
+```
+
+```{r On récupère les données}
+data(Boston,package = "MASS")
+```
+
+
+```{r On définit la fonction loglikelihood}
+LogLikelihood<-function(X,Y,beta,lambda,sigma,K){
+  log_lik<-0
+  for(i in 1:dim(X)[1])
+    log_lik=log_lik-((Y[i]-t(X[i,])%*%beta)/sigma)^2*0.5
+  for(i in 1:dim(X)[2])
+    log_lik=log_lik-lambda*abs(beta[i])^K
+  return(log_lik)
+}
+
+```
+
+```{r On définit la fonciton metropolis}
+Metropolis_RW<-function(Nsim,X,Y,K,lambda,sigma,beta0,p,width){
+  rho_data<-c()
+  beta<-matrix(beta0,1,p)
+  for (i in 2:Nsim){
+    epsilon<-runif(p,-width,width)
+    rho<-exp(LogLikelihood(X,Y,beta[i-1,]+epsilon,lambda,sigma,K)-LogLikelihood(X,Y,beta[i-1,],lambda,sigma,K))
+    rho_data<-c(rho_data,min(rho,1))
+    beta<-rbind(beta,beta[i-1,]+epsilon*(runif(1)<rho))
+  }
+  return(list(beta,rho_data))
+}
+```
+
+```{r On définit toutes nos variables}
+X<-Boston[,1:dim(Boston)[2]-1]
+Y<-Boston[,dim(Boston)[2]]
+X<-data.matrix(X)
+lambda<-0.5
+K<-2
+sigma<-100
+p<-13
+width<-0.01
+beta0<-matrix(0,1,13)
+Nsim<-10000
+```
+
+```{r On fait tourné l'algo metropolis}
+trajectory4<-Metropolis_RW(Nsim,X,Y,K,lambda,sigma,beta0,p,width)
+rho<-as.matrix(as.matrix(as.data.frame(trajectory4[2])))
+mean(rho)
+tra001<-data.frame(trajectory4[1])
+```
+
+```{r}
+acf(tra001$X1)
+```
+
+```{r}
+tra1<-data.frame(trajectory4[1])
+acf(tra1$X1,lag=72)
+```
+
+```{r}
+acf(tra01$X1,lag=72)
+```
+
+```{r}
+acf(tra001$X1,lag=72)
+```
+
+

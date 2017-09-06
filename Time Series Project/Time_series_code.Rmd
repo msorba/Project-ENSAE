@@ -1,0 +1,177 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+```{r}
+library(foreign)
+library(tseries)
+library(forecast)
+library(FitAR)
+library(lmtest)
+library(ggplot2)
+```
+
+```{r Extraction des données}
+df<- read.csv("C:\\Users\\maria\\Documents\\ENSAE\\Projet\\Serie temp\\Valeurs.csv",header=TRUE,sep=";")
+colnames(df)<-c("Année","Mois","Indice de Production et distribution d'eau, assainissement, gestion des déchets et dépollution")
+df<-df[c(-1,-2),]
+```
+
+
+```{r Série agrégée brute}
+jpeg('ST_brute.jpg')
+time_serie<-ts(df[,"Indice de Production et distribution d'eau, assainissement, gestion des déchets et dépollution"],frequency=12,start=c(1990,1))
+plot.ts(time_serie,col="blue",lwd=1,xlab="Temps",ylab="Taux de natalité")
+dev.off()
+plot.ts(time_serie,col="blue",lwd=1,xlab="Temps",ylab="Taux de natalité", main="Série temporelle brute: Indice de Production et distribution d'eau, assainissement, gestion des déchets et dépollution")
+#Tendance a la hausse, une composante saisonnière
+#modèle: X_t=a0 + a1t+st+Yt
+```
+
+
+
+
+
+
+
+```{r}
+jpeg('Box_Cox.jpg')
+BoxCox(time_serie)
+dev.off()
+lambda=0.844
+BoxCox(time_serie)
+time_serie=(time_serie^0.844 - 1)/0.844
+```
+
+```{r}
+jpeg('ST_tf_Box_Cox.jpg')
+plot.ts(time_serie,col="blue",lwd=1,xlab="Temps",ylab="Taux de natalité")
+dev.off()
+plot.ts(time_serie,col="blue",lwd=1,xlab="Temps",ylab="Taux de natalité", main="Série temporelle transformé: Indice de Production et distribution d'eau, assainissement, gestion des déchets et dépollution")
+```
+
+```{r}
+jpeg("Decomposition.jpg")
+plot(decompose(time_serie))
+dev.off()
+plot(decompose(time_serie))
+```
+
+```{r}
+#saisonnalité
+jpeg('ACF_ST_Brute.jpg')
+Acf(time_serie,lag.max=50,ylab="Autocorrélation",xlab="Lag",main="")
+dev.off()
+Acf(time_serie,lag.max=50,main="ACF Série brute",ylab="Autocorrélation",xlab="Lag")
+```
+
+```{r}
+#saisonnalité
+jpeg('PACF_ST_Brute.jpg')
+Pacf(time_serie,lag.max=50,ylab="Autocorrélation",xlab="Lag",main="")
+dev.off()
+Pacf(time_serie,lag.max=50,main="ACF Série brute",ylab="Autocorrélation",xlab="Lag")
+```
+
+
+
+
+```{r On elève la saisonnalité annuelle}
+#opérateur de différenciation saisonnière
+jpeg("ST_saison.jpg")
+time_serie<-time_serie- lag(time_serie,12)
+plot.ts(time_serie,col="blue",lwd=1,xlab="Temps",ylab="Taux de Natalité")
+dev.off()
+plot.ts(time_serie,col="blue",lwd=1,xlab="Temps",ylab="Taux de Natalité", main="Serie désaisonnalisée et tranformée")
+```
+
+
+
+
+```{r Test de stationnarité}
+#test de stationarité
+adf.test(time_serie)#dicker fuller stationnarité 
+pp.test(time_serie)#phillip
+kpss.test(time_serie)
+```
+```{r ACF et PACF identification des paramètres maximums}
+#acf: On s'arrete au 4 eme pic, MA max=qmax=4
+jpeg("ACF_ST_saison_BC.jpg")
+Acf(time_serie,lag.max=11,ylab="Autocorrélation",xlab="Lag",main="")
+dev.off()
+Acf(time_serie,lag.max=11,main="ACF Série transformée et désaisonnalisée ",ylab="Autocorrélation",xlab="Lag")
+#pacf: On s'arrete au 4 eme pic, MA max=qmax=4
+jpeg("PACF_ST_saison_BC.jpg")
+Pacf(time_serie,lag.max=11,ylab="Autocorrélation partielle",xlab="Lag",main="")
+dev.off()
+Pacf(time_serie,lag.max=11,main="PACF Série transformée et désaisonnalisée ",ylab="Autocorrélation partielle",xlab="Lag")
+```
+
+```{r}
+#on vérifie que  on a pas sur differencié: c'est pas linaire donc ca va
+#InverseAcf=function(z,p=15){
+#  g=TacvfMA (GetFitARpLS (z-mean(z) ,1:p)$phiHat,lag.max=p)
+#  g/g[1]
+#}
+#plot.ts(InverseAcf(time_serie))
+```
+
+```{r}
+for (p in 0:4){
+  for (q in 0:4){
+    fit<-arima(time_serie, order=c(p,0,q))
+    print(Box.test(fit$residuals))#p value enorme: on ne rejette pas
+    print(coeftest(fit))}#on utilise bic car beaucoup de paramètre
+}
+```
+
+
+
+
+
+```{r}
+mat<-matrix(nrow=4,ncol=4)
+for (p in 0:3){
+  for (q in 0:3){
+    mat[p+1,q+1]<-AIC(arima(time_serie, order=c(p,0,q)))}#on utilise bic car beaucoup de paramètre
+}
+
+mat
+min(mat)#(p=3,q=3 1278.128 ou 1279.553 (1,1) : maximise le critère 
+#max pour 
+```
+
+```{r}
+fit<-arima(time_serie,c(3,0,2))
+Box.test(fit$residuals)#p value enorme: on ne rejette pas
+coeftest(fit)
+```
+
+```{r}
+fit<-arima(time_serie,c(2,0,3))
+Box.test(fit$residuals)#p value enorme: on ne rejette pas
+coeftest(fit)#les deux sont significative: on choisi ce modèle
+```
+
+```{r}
+fit<-arima(time_serie,c(2,0,2))
+Box.test(fit$residuals)#p value enorme: on ne rejette pas
+coeftest(fit)#les deux sont significative: on choisi ce modèle
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
